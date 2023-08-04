@@ -69,6 +69,11 @@ func main() {
 			log.Fatal(err)
 		}
 
+		// If we get a message with no Twitter info, ignore it
+		if mqttMsg.TwitterConsumerKey == "" {
+			return
+		}
+
 		// Check to see if we're rate limited, if so return.
 		if reset, ok := twitterRateLimits[mqttMsg.TwitterConsumerKey]; ok {
 			if reset >= time.Now().Unix() {
