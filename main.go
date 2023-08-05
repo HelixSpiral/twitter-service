@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -90,45 +88,51 @@ func main() {
 
 		httpClient := config.Client(oauth1.NoContext, token)
 
-		// TODO: Add image handling too
-		if mqttMsg.Image == "" {
-			resp, err := httpClient.Post("https://api.twitter.com/2/tweets", "application/json",
-				bytes.NewBuffer([]byte(fmt.Sprintf(`{"text": "%s"}`, mqttMsg.Message))))
+		var MediaIDString string
+		if len(mqttMsg.Image) > 0 {
+			resp, err := uploadImage(httpClient, mqttMsg.Image)
 			if err != nil {
-				panic(err)
-			}
-			defer resp.Body.Close()
-
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				panic(err)
+				log.Println(err)
 			}
 
-			log.Println("Tweet:", string(body))
-			log.Println("Headers:", resp.Header)
+			MediaIDString = resp.MediaIDString
+		}
 
-			XAppLimit24HourRemainingString := resp.Header.Get("X-App-Limit-24Hour-Remaining")
-			XAppLimit24HourResetString := resp.Header.Get("X-App-Limit-24Hour-Reset")
+		resp, err := sendMessage(httpClient, mqttMsg.Message, MediaIDString)
+		if err != nil {
+			log.Println(err)
+		}
+		defer resp.Body.Close()
 
-			XAppLimit24HourRemaining, err := strconv.Atoi(XAppLimit24HourRemainingString)
-			if err != nil {
-				log.Fatal(err)
-			}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Println(err)
+		}
 
-			XAppLimit24HourReset, err := strconv.ParseInt(XAppLimit24HourResetString, 10, 64)
-			if err != nil {
-				log.Fatal(err)
-			}
+		log.Println("Tweet:", string(body))
+		log.Println("Headers:", resp.Header)
 
-			// If we sent too many requests, immediately stop for an hour for this account
-			if strings.Contains(string(body), "Too Many Requests") {
-				twitterRateLimits[mqttMsg.TwitterConsumerKey] = time.Now().Add(1 * time.Hour).Unix()
-			}
+		XAppLimit24HourRemainingString := resp.Header.Get("X-App-Limit-24Hour-Remaining")
+		XAppLimit24HourResetString := resp.Header.Get("X-App-Limit-24Hour-Reset")
 
-			// If we're entirely out of requests for the day, stop until the reset time.
-			if XAppLimit24HourRemaining <= 0 {
-				twitterRateLimits[mqttMsg.TwitterConsumerKey] = XAppLimit24HourReset
-			}
+		XAppLimit24HourRemaining, err := strconv.Atoi(XAppLimit24HourRemainingString)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		XAppLimit24HourReset, err := strconv.ParseInt(XAppLimit24HourResetString, 10, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// If we sent too many requests, immediately stop for an hour for this account
+		if strings.Contains(string(body), "Too Many Requests") {
+			twitterRateLimits[mqttMsg.TwitterConsumerKey] = time.Now().Add(1 * time.Hour).Unix()
+		}
+
+		// If we're entirely out of requests for the day, stop until the reset time.
+		if XAppLimit24HourRemaining <= 0 {
+			twitterRateLimits[mqttMsg.TwitterConsumerKey] = XAppLimit24HourReset
 		}
 	}
 
