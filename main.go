@@ -88,17 +88,25 @@ func main() {
 
 		httpClient := config.Client(oauth1.NoContext, token)
 
-		var MediaIDString string
-		if len(mqttMsg.Image) > 0 {
-			resp, err := uploadImage(httpClient, mqttMsg.Image)
-			if err != nil {
-				log.Println(err)
-			}
+		var MediaIDStrings []string
 
-			MediaIDString = resp.MediaIDString
+		// This is a short term fix until we remove the Image field
+		if len(mqttMsg.Image) > 0 {
+			mqttMsg.Images = append(mqttMsg.Images, mqttMsg.Image)
 		}
 
-		resp, err := sendMessage(httpClient, mqttMsg.Message, MediaIDString)
+		if len(mqttMsg.Images) > 0 {
+			for _, image := range mqttMsg.Images {
+				resp, err := uploadImage(httpClient, image)
+				if err != nil {
+					log.Println(err)
+				}
+
+				MediaIDStrings = append(MediaIDStrings, resp.MediaIDString)
+			}
+		}
+
+		resp, err := sendMessage(httpClient, mqttMsg.Message, MediaIDStrings)
 		if err != nil {
 			log.Println(err)
 		}

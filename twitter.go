@@ -8,6 +8,7 @@ import (
 	"log"
 	"mime/multipart"
 	"net/http"
+	"strings"
 )
 
 func uploadImage(httpClient *http.Client, image []byte) (twitterMediaResponse, error) {
@@ -47,24 +48,29 @@ func uploadImage(httpClient *http.Client, image []byte) (twitterMediaResponse, e
 	return mediaResp, nil
 }
 
-func sendMessage(httpClient *http.Client, message, mediaID string) (*http.Response, error) {
+func sendMessage(httpClient *http.Client, message string, mediaIDs []string) (*http.Response, error) {
 	// We have to define these because of some odd scoping in the if's
 	var resp *http.Response
 	var err error
 
+	var twitterMsg string
+
 	// If we have a media ID, use it, otherwise don't.
-	if mediaID != "" {
-		resp, err = httpClient.Post("https://api.twitter.com/2/tweets", "application/json",
-			bytes.NewBuffer([]byte(fmt.Sprintf(`{"text": "%s", "media": {"media_ids": ["%s"]}}`, message, mediaID))))
-		if err != nil {
-			return nil, fmt.Errorf("error in http POST: %w", err)
+	if len(mediaIDs) > 0 {
+		// Loop over the media IDs and format them to be enclosed wtih quotes
+		for x, ID := range mediaIDs {
+			mediaIDs[x] = fmt.Sprintf("\"%s\"", ID)
 		}
+
+		twitterMsg = fmt.Sprintf(`{"text": "%s", "media": {"media_ids": [%s]}}`, message, strings.Join(mediaIDs, ","))
 	} else {
-		resp, err = httpClient.Post("https://api.twitter.com/2/tweets", "application/json",
-			bytes.NewBuffer([]byte(fmt.Sprintf(`{"text": "%s"}`, message))))
-		if err != nil {
-			return nil, fmt.Errorf("erorr in http POST: %w", err)
-		}
+		twitterMsg = fmt.Sprintf(`{"text": "%s"}`, message)
+	}
+
+	resp, err = httpClient.Post("https://api.twitter.com/2/tweets", "application/json",
+		bytes.NewBuffer([]byte(twitterMsg)))
+	if err != nil {
+		return nil, fmt.Errorf("error in http POST: %w", err)
 	}
 
 	return resp, nil

@@ -7,7 +7,8 @@ type MqttMessage struct {
 	TwitterAccessSecret   string
 
 	Message string
-	Image   []byte
+	Image   []byte // Deprecated in favor of Images
+	Images  [][]byte
 }
 
 type twitterMediaResponse struct {
@@ -23,4 +24,13 @@ type twitterImageInfo struct {
 	Type   string `json:"image_type"`
 	Width  int    `json:"w"`
 	Height int    `json:"h"`
+}
+
+type TwitterMsg struct {
+	Text  string       `json:"text"`
+	Media TwitterMedia `json:"media,omitempty"`
+}
+
+type TwitterMedia struct {
+	MediaIDs []string `json:"media_ids,omitempty"`
 }
